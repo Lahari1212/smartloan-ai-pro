@@ -55,6 +55,21 @@ def create_tables():
     """)
 
     # --------------------------------------------------
+    # Notifications table
+    # --------------------------------------------------
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            application_id TEXT,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            is_read INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    # --------------------------------------------------
     # Applications table
     # --------------------------------------------------
     cursor.execute("""
@@ -486,3 +501,43 @@ def get_audit_log(application_id: str):
     """, (application_id,)).fetchall()
     connection.close()
     return [dict(row) for row in rows]
+
+
+# ==============================================================
+# Notification Functions
+# ==============================================================
+
+def create_notification(user_id: str, title: str, message: str, application_id: str = None):
+    """Create an in-app notification for a user."""
+    connection = get_connection()
+    connection.execute("""
+        INSERT INTO notifications (user_id, application_id, title, message)
+        VALUES (?, ?, ?, ?)
+    """, (user_id, application_id, title, message))
+    connection.commit()
+    connection.close()
+
+
+def get_notifications_by_user(user_id: str, limit: int = 20):
+    """Fetch notifications for a specific user, newest first."""
+    connection = get_connection()
+    rows = connection.execute("""
+        SELECT * FROM notifications
+        WHERE user_id = ?
+        ORDER BY id DESC
+        LIMIT ?
+    """, (user_id, limit)).fetchall()
+    connection.close()
+    return [dict(row) for row in rows]
+
+
+def mark_notification_as_read(notification_id: int, user_id: str):
+    """Mark a notification as read."""
+    connection = get_connection()
+    connection.execute("""
+        UPDATE notifications
+        SET is_read = 1
+        WHERE id = ? AND user_id = ?
+    """, (notification_id, user_id))
+    connection.commit()
+    connection.close()

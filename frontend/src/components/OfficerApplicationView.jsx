@@ -4,6 +4,8 @@ import {
   processAllDocuments,
   submitOfficerReview,
   getDocumentDownloadUrl,
+  downloadPdfReport,
+  chatWithAiAnalyst,
 } from "../services/api";
 
 function SectionCard({ title, icon, children }) {
@@ -52,6 +54,59 @@ export default function OfficerApplicationView({ applicationId, onBack, user }) 
 
   // AI Summary toggle
   const [showSummary, setShowSummary] = useState(false);
+
+  // PDF Export state
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  // Context-Aware AI Loan Analyst Chatbot state
+  const [chatMessages, setChatMessages] = useState([
+    {
+      role: "model",
+      content: "Hello Officer! I have analyzed this borrower's financial profile, uploaded documents, and risk indicators. How can I assist your underwriting review?",
+    },
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+
+  const handleExportPdf = async () => {
+    try {
+      setExportingPdf(true);
+      await downloadPdfReport(applicationId, data?.applicant_name || "Applicant");
+    } catch (err) {
+      alert("Failed to export PDF report: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setExportingPdf(false);
+    }
+  };
+
+  const handleSendQuery = async (queryText) => {
+    const q = queryText || chatInput;
+    if (!q.trim() || chatLoading) return;
+
+    const newHistory = [...chatMessages, { role: "user", content: q }];
+    setChatMessages(newHistory);
+    setChatInput("");
+    setChatLoading(true);
+
+    try {
+      const res = await chatWithAiAnalyst(applicationId, q, newHistory);
+      setChatMessages((prev) => [...prev, { role: "model", content: res.data.reply }]);
+    } catch (err) {
+      setChatMessages((prev) => [
+        ...prev,
+        { role: "model", content: "⚠️ Analyst agent error: " + (err.response?.data?.detail || err.message) },
+      ]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleUseAiNoteInReview = (aiContent) => {
+    // Extract text in quotes if present or use full content
+    const match = aiContent.match(/"([^"]+)"/);
+    const textToUse = match ? match[1] : aiContent;
+    setNotes(textToUse);
+  };
 
   const load = async () => {
     try {
@@ -153,6 +208,14 @@ export default function OfficerApplicationView({ applicationId, onBack, user }) 
         </div>
         <div className="dash-header-actions">
           <StatusBadge status={appStatus} />
+          <button
+            className="btn-primary btn-sm"
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
+            title="Download official PDF report"
+          >
+            {exportingPdf ? "Generating PDF..." : "📥 Export PDF Report"}
+          </button>
           <button className="btn-outline-light" onClick={onBack}>
             ← Dashboard
           </button>
@@ -322,7 +385,95 @@ export default function OfficerApplicationView({ applicationId, onBack, user }) 
           </SectionCard>
         )}
 
-        {/* 8. Officer Review Panel */}
+        {/* 8. Context-Aware AI Loan Analyst Assistant */}
+        <SectionCard title="AI Loan Analyst Assistant (Context-Aware Agent)" icon="🤖">
+          <div className="ai-assistant-wrapper">
+            <p className="ai-assistant-desc">
+              Ask questions directly about this applicant&apos;s income verification, cross-document inconsistencies, credit risk rating, or ask the agent to draft custom underwriting notes.
+            </p>
+
+            {/* Quick Prompt Chips */}
+            <div className="prompt-chips">
+              {[
+                { label: "📊 Summarize Risk", query: "Summarize this loan application, key risks, and verification findings." },
+                { label: "🚨 Explain Anomalies", query: "Are there any document discrepancies or income mismatches?" },
+                { label: "💳 CIBIL & Credit Analysis", query: "Explain this applicant's CIBIL score and default probability." },
+                { label: "📝 Draft Approval Note", query: "Draft an officer approval decision note for this loan." },
+                { label: "❌ Draft Rejection Note", query: "Draft an officer rejection decision note explaining the reasons." },
+              ].map((chip) => (
+                <button
+                  key={chip.label}
+                  type="button"
+                  className="chip-btn"
+                  onClick={() => handleSendQuery(chip.query)}
+                  disabled={chatLoading}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Chat History View */}
+            <div className="ai-chat-box">
+              {chatMessages.map((msg, i) => (
+                <div
+                  key={i}
+                  className={`chat-bubble-row ${msg.role === "user" ? "chat-row-user" : "chat-row-agent"}`}
+                >
+                  <div className={`chat-bubble ${msg.role === "user" ? "bubble-user" : "bubble-agent"}`}>
+                    <div className="chat-bubble-header">
+                      <strong>{msg.role === "user" ? "Officer Inquiry" : "🤖 SmartLoan AI Analyst"}</strong>
+                    </div>
+                    <div className="chat-bubble-text" style={{ whiteSpace: "pre-wrap" }}>
+                      {msg.content}
+                    </div>
+
+                    {msg.role === "model" && i > 0 && (
+                      <button
+                        type="button"
+                        className="btn-use-note"
+                        onClick={() => handleUseAiNoteInReview(msg.content)}
+                        title="Copy suggested note into review decision notes form"
+                      >
+                        ✍️ Use as Officer Note
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div className="chat-bubble-row chat-row-agent">
+                  <div className="chat-bubble bubble-agent chat-typing">
+                    🤖 Analyzing underwriting data & synthesis...
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Chat Input Bar */}
+            <form
+              className="chat-input-bar"
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleSendQuery();
+              }}
+            >
+              <input
+                type="text"
+                placeholder="Ask the AI Analyst (e.g. 'Compare income to bank statements', 'What is the asset coverage?')..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                disabled={chatLoading}
+              />
+              <button type="submit" className="btn-primary" disabled={chatLoading || !chatInput.trim()}>
+                {chatLoading ? "Thinking..." : "Ask Agent →"}
+              </button>
+            </form>
+          </div>
+        </SectionCard>
+
+        {/* 9. Officer Review Panel */}
         <SectionCard title="Officer Decision" icon="⚖️">
           {reviewSuccess && (
             <div className="alert-success">{reviewSuccess}</div>

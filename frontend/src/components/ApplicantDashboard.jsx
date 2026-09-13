@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApplications } from "../services/api";
+import { getApplications, getNotifications, markNotificationRead, downloadPdfReport } from "../services/api";
 import ApplicationForm from "./ApplicationForm";
 import DocumentUpload from "./DocumentUpload";
 import EligibilityResult from "./EligibilityResult";
@@ -43,6 +43,8 @@ export default function ApplicantDashboard({ user, onLogout }) {
   const [eligibilityResult, setEligibilityResult] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notifications, setNotifications] = useState([]);
+  const [downloadingPdf, setDownloadingPdf] = useState(null);
 
   const loadApplications = async () => {
     try {
@@ -56,8 +58,38 @@ export default function ApplicantDashboard({ user, onLogout }) {
     }
   };
 
+  const loadNotifications = async () => {
+    try {
+      const res = await getNotifications();
+      setNotifications(res.data.notifications || []);
+    } catch {
+      // Non-critical, ignore
+    }
+  };
+
+  const handleDismissNotification = async (notifId) => {
+    try {
+      await markNotificationRead(notifId);
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    } catch {
+      setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    }
+  };
+
+  const handleDownloadPdf = async (app) => {
+    try {
+      setDownloadingPdf(app.application_id);
+      await downloadPdfReport(app.application_id, app.applicant_name);
+    } catch (err) {
+      alert("Failed to download report: " + (err.response?.data?.detail || err.message));
+    } finally {
+      setDownloadingPdf(null);
+    }
+  };
+
   useEffect(() => {
     loadApplications();
+    loadNotifications();
   }, []);
 
   const handleApplicationCreated = (app) => {
@@ -202,6 +234,31 @@ export default function ApplicantDashboard({ user, onLogout }) {
           </div>
         </div>
 
+        {/* Notification Alerts Banner */}
+        {notifications.filter((n) => !n.is_read).length > 0 && (
+          <div className="notification-banner-feed">
+            {notifications.filter((n) => !n.is_read).map((notif) => (
+              <div className="notif-alert-card" key={notif.id}>
+                <div className="notif-alert-content">
+                  <span className="notif-bell-icon">🔔</span>
+                  <div>
+                    <strong>{notif.title}</strong>
+                    <p>{notif.message}</p>
+                    <small>{new Date(notif.created_at).toLocaleString("en-IN")}</small>
+                  </div>
+                </div>
+                <button
+                  className="btn-dismiss-notif"
+                  onClick={() => handleDismissNotification(notif.id)}
+                  title="Dismiss notification"
+                >
+                  ✕
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Stats Row */}
         <div className="stats-row">
           {[
@@ -303,12 +360,21 @@ export default function ApplicantDashboard({ user, onLogout }) {
 
                     <div className="app-card-actions">
                       {isComplete ? (
-                        <button
-                          className="btn-secondary"
-                          onClick={() => handleViewResult(app)}
-                        >
-                          View Result
-                        </button>
+                        <>
+                          <button
+                            className="btn-secondary"
+                            onClick={() => handleViewResult(app)}
+                          >
+                            View Result
+                          </button>
+                          <button
+                            className="btn-outline"
+                            onClick={() => handleDownloadPdf(app)}
+                            disabled={downloadingPdf === app.application_id}
+                          >
+                            {downloadingPdf === app.application_id ? "Generating PDF..." : "📥 Download Official PDF"}
+                          </button>
+                        </>
                       ) : (
                         <>
                           {app.status === "Document Pending" && (

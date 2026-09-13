@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile, Query, Depends
+from fastapi import FastAPI, File, HTTPException, UploadFile, Query, Depends, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, EmailStr, Field
@@ -54,6 +54,9 @@ from database import (
     upsert_officer,
     log_audit_event,
     get_audit_log,
+    create_notification,
+    get_notifications_by_user,
+    mark_notification_as_read,
 )
 
 from auth import (
@@ -73,6 +76,8 @@ from document_validator import validate_single_document, validate_all_documents,
 from eligibility_agent import calculate_eligibility, generate_loan_processing_summary
 from database_loader import load_loan_dataset
 from dummy_generator import generate_document_bundle
+from report_generator import generate_underwriting_pdf
+from ai_assistant import run_loan_analyst_agent
 
 
 # --------------------------------------------------
@@ -186,6 +191,12 @@ class OfficerReviewRequest(BaseModel):
     decision: str  # "Approved", "Rejected", "Manual Review", "Request Re-upload"
     notes: str
     officer_id: Optional[str] = None
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1)
+    history: Optional[List[dict]] = []
+
 
 
 # --------------------------------------------------
@@ -782,6 +793,15 @@ def submit_officer_review(
         user_email=officer_identifier,
     )
 
+    # Dispatch notification to applicant if application has associated user_id
+    if app_record.get("user_id"):
+        create_notification(
+            user_id=app_record["user_id"],
+            title=f"Loan Application {review.decision}",
+            message=f"Your loan application #{application_id[:8].upper()} has been updated to '{review.decision}'. Officer Notes: {review.notes}",
+            application_id=application_id,
+        )
+
     return {
         "message": f"Officer review saved: {review.decision}",
         "application_id": application_id,
@@ -821,3 +841,134 @@ def get_application_audit(
     app_record = _get_app_or_404(application_id)
     _assert_ownership(app_record, current_user)
     return {"audit_log": get_audit_log(application_id)}
+
+
+# --------------------------------------------------
+# PDF Report Export Endpoint
+# --------------------------------------------------
+
+@app.get("/applications/{application_id}/export-pdf")
+def export_application_pdf(
+    application_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Generates and downloads a formal Underwriting & Decision PDF Report.
+    """
+    app_record = _get_app_or_404(application_id)
+    _assert_ownership(app_record, current_user)
+
+    docs = get_documents_by_application(application_id)
+    validation_report = validate_all_documents(app_record, docs) if docs else {}
+    ml_result = calculate_eligibility(
+        annual_income=app_record["annual_income"],
+        loan_amount=app_record["loan_amount"],
+        validation_result=validation_report,
+        applicant_name=app_record["applicant_name"],
+        loan_id=app_record.get("loan_id"),
+        cibil_score=app_record.get("cibil_score", 750),
+        loan_term=app_record.get("loan_term", 10),
+        education=app_record.get("education", "Graduate"),
+        self_employed=app_record.get("self_employed", "No"),
+        residential_assets=app_record.get("residential_assets_value", 0),
+        commercial_assets=app_record.get("commercial_assets_value", 0),
+        luxury_assets=app_record.get("luxury_assets_value", 0),
+        bank_asset=app_record.get("bank_asset_value", 0),
+    ) if docs else {}
+    audit = get_audit_log(application_id)
+
+    pdf_buffer = generate_underwriting_pdf(
+        application=app_record,
+        documents=docs,
+        validation_report=validation_report,
+        ml_result=ml_result,
+        audit_log=audit,
+    )
+
+    filename = f"SmartLoan_Report_{app_record['applicant_name'].replace(' ', '_')}_{application_id[:8].upper()}.pdf"
+
+    log_audit_event(
+        application_id=application_id,
+        event="PDF Dossier Exported",
+        details=f"Official Underwriting Report downloaded by {current_user.get('email', 'User')}",
+        user_id=current_user["sub"],
+        user_email=current_user.get("email"),
+    )
+
+    return Response(
+        content=pdf_buffer.getvalue(),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename=\"{filename}\""},
+    )
+
+
+# --------------------------------------------------
+# Context-Aware AI Loan Analyst Chatbot Endpoint
+# --------------------------------------------------
+
+@app.post("/applications/{application_id}/chat")
+def chat_with_loan_analyst(
+    application_id: str,
+    req: ChatRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Context-aware interactive AI assistant for loan officers.
+    """
+    app_record = _get_app_or_404(application_id)
+    _assert_ownership(app_record, current_user)
+
+    docs = get_documents_by_application(application_id)
+    validation_report = validate_all_documents(app_record, docs) if docs else {}
+    ml_result = calculate_eligibility(
+        annual_income=app_record["annual_income"],
+        loan_amount=app_record["loan_amount"],
+        validation_result=validation_report,
+        applicant_name=app_record["applicant_name"],
+        loan_id=app_record.get("loan_id"),
+        cibil_score=app_record.get("cibil_score", 750),
+        loan_term=app_record.get("loan_term", 10),
+        education=app_record.get("education", "Graduate"),
+        self_employed=app_record.get("self_employed", "No"),
+        residential_assets=app_record.get("residential_assets_value", 0),
+        commercial_assets=app_record.get("commercial_assets_value", 0),
+        luxury_assets=app_record.get("luxury_assets_value", 0),
+        bank_asset=app_record.get("bank_asset_value", 0),
+    ) if docs else {}
+
+    ai_reply = run_loan_analyst_agent(
+        application=app_record,
+        documents=docs,
+        validation_report=validation_report,
+        ml_result=ml_result,
+        user_query=req.message,
+        chat_history=req.history,
+    )
+
+    return {
+        "reply": ai_reply,
+        "application_id": application_id,
+    }
+
+
+# --------------------------------------------------
+# In-App Notifications Endpoints
+# --------------------------------------------------
+
+@app.get("/notifications")
+def get_user_notifications_endpoint(
+    current_user: dict = Depends(get_current_user),
+):
+    """Get latest in-app notifications for current user."""
+    notifs = get_notifications_by_user(current_user["sub"])
+    return {"notifications": notifs}
+
+
+@app.post("/notifications/{notification_id}/read")
+def mark_read_endpoint(
+    notification_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Mark a notification as read."""
+    mark_notification_as_read(notification_id, current_user["sub"])
+    return {"status": "success", "notification_id": notification_id}

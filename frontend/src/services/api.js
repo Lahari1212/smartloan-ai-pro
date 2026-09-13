@@ -96,8 +96,30 @@ export const checkEligibility = (applicationId) =>
 export const getDocumentDownloadUrl = (documentId) =>
   `${API_BASE_URL}/documents/${documentId}/download`;
 
-// ─── Officer ─────────────────────────────────────────────────────────────────
+// ─── Officer & AI Assistant ──────────────────────────────────────────────────
 export const submitOfficerReview = (applicationId, reviewData) =>
   api.post(`/applications/${applicationId}/officer-review`, reviewData);
+
+export const chatWithAiAnalyst = (applicationId, message, history = []) =>
+  api.post(`/applications/${applicationId}/chat`, { message, history });
+
+export const downloadPdfReport = async (applicationId, applicantName = "Applicant") => {
+  const response = await api.get(`/applications/${applicationId}/export-pdf`, {
+    responseType: "blob",
+  });
+  const url = window.URL.createObjectURL(new Blob([response.data], { type: "application/pdf" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `SmartLoan_Report_${applicantName.replace(/\s+/g, "_")}_${applicationId.slice(0, 8)}.pdf`);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.URL.revokeObjectURL(url);
+};
+
+// ─── In-App Notifications ────────────────────────────────────────────────────
+export const getNotifications = () => api.get("/notifications");
+export const markNotificationRead = (notificationId) =>
+  api.post(`/notifications/${notificationId}/read`);
 
 export default api;
