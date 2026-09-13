@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { loginUser, saveSession } from "../services/api";
 
-export default function OfficerLogin({ onLogin, onBack }) {
+export default function ApplicantLogin({ onLogin, onRegister, onBack }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -16,8 +16,8 @@ export default function OfficerLogin({ onLogin, onBack }) {
       const res = await loginUser({ email, password });
       const { access_token, user } = res.data;
 
-      if (user.role !== "officer") {
-        setError("Access denied. This portal is for authorized Loan Officers only.");
+      if (user.role !== "applicant") {
+        setError("This portal is for applicants only. Please use the Loan Officer Portal.");
         return;
       }
 
@@ -25,24 +25,22 @@ export default function OfficerLogin({ onLogin, onBack }) {
       onLogin(user);
     } catch (err) {
       const msg = err.response?.data?.detail || "Login failed. Please check your credentials.";
-      setError(typeof msg === "string" ? msg : "Login failed. Unauthorized access.");
+      setError(msg);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <main className="auth-page officer-auth-page">
-      <form className="auth-card officer-auth-card" onSubmit={handleSubmit}>
-        <button type="button" className="back-btn dark-back-btn" onClick={onBack}>
+    <main className="auth-page applicant-auth-page">
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <button type="button" className="back-btn" onClick={onBack}>
           ← Back
         </button>
 
-        <div className="auth-brand officer-brand">LOAN OFFICER PORTAL</div>
-        <h1 className="auth-title">Secure Login</h1>
-        <p className="auth-subtitle officer-subtitle">
-          Access loan applications and AI risk assessments.
-        </p>
+        <div className="auth-brand">APPLICANT PORTAL</div>
+        <h1 className="auth-title">Welcome back</h1>
+        <p className="auth-subtitle">Sign in to manage your loan application.</p>
 
         {error && <div className="auth-error">{error}</div>}
 
@@ -50,13 +48,12 @@ export default function OfficerLogin({ onLogin, onBack }) {
           <label>Email address</label>
           <input
             type="email"
-            placeholder="officer@yourdomain.com"
+            placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
             disabled={loading}
             autoComplete="email"
-            className="dark-input"
           />
         </div>
 
@@ -70,15 +67,19 @@ export default function OfficerLogin({ onLogin, onBack }) {
             required
             disabled={loading}
             autoComplete="current-password"
-            className="dark-input"
           />
         </div>
 
-        <button className="auth-submit-btn officer-submit-btn" type="submit" disabled={loading}>
-          {loading ? "Authenticating..." : "Login as Loan Officer"}
+        <button className="auth-submit-btn" type="submit" disabled={loading}>
+          {loading ? "Signing in..." : "Login"}
         </button>
 
-        <p className="officer-notice">🔒 Authorized personnel only. No public registration.</p>
+        <p className="auth-switch">
+          Don&apos;t have an account?{" "}
+          <button type="button" className="link-btn" onClick={onRegister}>
+            Create Account
+          </button>
+        </p>
       </form>
     </main>
   );

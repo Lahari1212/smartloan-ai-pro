@@ -1,24 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import RoleSelection from "./components/RoleSelection";
-import UserLogin from "./components/UserLogin";
+import ApplicantLogin from "./components/ApplicantLogin";
+import ApplicantRegister from "./components/ApplicantRegister";
 import OfficerLogin from "./components/OfficerLogin";
-import UserDashboard from "./components/UserDashboard";
+import ApplicantDashboard from "./components/ApplicantDashboard";
 import OfficerDashboard from "./components/OfficerDashboard";
+import { getStoredUser, clearSession } from "./services/api";
 
 export default function App() {
   const [page, setPage] = useState("roles");
   const [currentUser, setCurrentUser] = useState(null);
 
+  // Restore session on page load
+  useEffect(() => {
+    const stored = getStoredUser();
+    if (stored) {
+      setCurrentUser(stored);
+      setPage(stored.role === "applicant" ? "applicantDashboard" : "officerDashboard");
+    }
+  }, []);
+
   const handleLogin = (user) => {
     setCurrentUser(user);
-    setPage(
-      user.role === "user"
-        ? "userDashboard"
-        : "officerDashboard"
-    );
+    setPage(user.role === "applicant" ? "applicantDashboard" : "officerDashboard");
   };
 
   const handleLogout = () => {
+    clearSession();
     setCurrentUser(null);
     setPage("roles");
   };
@@ -26,16 +34,29 @@ export default function App() {
   if (page === "roles") {
     return (
       <RoleSelection
-        onSelectRole={(role) => setPage(`${role}Login`)}
+        onSelectRole={(role) => {
+          if (role === "applicant") setPage("applicantLogin");
+          else setPage("officerLogin");
+        }}
       />
     );
   }
 
-  if (page === "userLogin") {
+  if (page === "applicantLogin") {
     return (
-      <UserLogin
+      <ApplicantLogin
         onLogin={handleLogin}
+        onRegister={() => setPage("applicantRegister")}
         onBack={() => setPage("roles")}
+      />
+    );
+  }
+
+  if (page === "applicantRegister") {
+    return (
+      <ApplicantRegister
+        onLogin={handleLogin}
+        onBack={() => setPage("applicantLogin")}
       />
     );
   }
@@ -49,9 +70,9 @@ export default function App() {
     );
   }
 
-  if (page === "userDashboard") {
+  if (page === "applicantDashboard") {
     return (
-      <UserDashboard
+      <ApplicantDashboard
         user={currentUser}
         onLogout={handleLogout}
       />
