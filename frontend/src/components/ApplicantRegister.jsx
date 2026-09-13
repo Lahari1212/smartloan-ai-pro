@@ -36,7 +36,16 @@ export default function ApplicantRegister({ onLogin, onBack }) {
       saveSession(access_token, user);
       onLogin(user);
     } catch (err) {
-      const msg = err.response?.data?.detail || "Registration failed. Please try again.";
+      let msg = "Registration failed. Please try again.";
+      if (!err.response) {
+        msg = "Cannot connect to server. Please check your backend connection.";
+      } else if (typeof err.response.data?.detail === "string") {
+        msg = err.response.data.detail;
+      } else if (Array.isArray(err.response.data?.detail)) {
+        msg = err.response.data.detail.map((d) => d.msg || JSON.stringify(d)).join("; ");
+      } else if (err.response.data?.message) {
+        msg = err.response.data.message;
+      }
       setError(msg);
     } finally {
       setLoading(false);
