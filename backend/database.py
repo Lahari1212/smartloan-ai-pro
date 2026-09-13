@@ -294,14 +294,25 @@ def get_all_applications():
 
 
 def get_applications_by_user(user_id: str):
-    """Return applications belonging to a specific applicant."""
+    """Return applications belonging to a specific applicant by user_id or matching email."""
     connection = get_connection()
-    rows = connection.execute("""
-        SELECT *
-        FROM applications
-        WHERE user_id = ?
-        ORDER BY id DESC
-    """, (user_id,)).fetchall()
+    user = connection.execute("SELECT email FROM users WHERE user_id = ?", (user_id,)).fetchone()
+    email = user["email"] if user else None
+
+    if email:
+        rows = connection.execute("""
+            SELECT *
+            FROM applications
+            WHERE user_id = ? OR LOWER(email) = LOWER(?)
+            ORDER BY id DESC
+        """, (user_id, email)).fetchall()
+    else:
+        rows = connection.execute("""
+            SELECT *
+            FROM applications
+            WHERE user_id = ?
+            ORDER BY id DESC
+        """, (user_id,)).fetchall()
     connection.close()
     return [dict(row) for row in rows]
 

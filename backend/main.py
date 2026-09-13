@@ -220,6 +220,12 @@ def _assert_ownership(app_record: dict, current_user: dict):
         return  # officers can access all
 
     app_user_id = app_record.get("user_id")
+    app_email = (app_record.get("email") or "").lower().strip()
+    user_email = (current_user.get("email") or "").lower().strip()
+
+    if (app_user_id and app_user_id == current_user.get("sub")) or (app_email and app_email == user_email):
+        return
+
     if app_user_id and app_user_id != current_user.get("sub"):
         raise HTTPException(
             status_code=403,
@@ -793,10 +799,16 @@ def submit_officer_review(
         user_email=officer_identifier,
     )
 
-    # Dispatch notification to applicant if application has associated user_id
-    if app_record.get("user_id"):
+    # Dispatch notification to applicant if application has associated user
+    target_user_id = app_record.get("user_id")
+    if not target_user_id and app_record.get("email"):
+        matched_user = get_user_by_email(app_record.get("email"))
+        if matched_user:
+            target_user_id = matched_user.get("user_id")
+
+    if target_user_id:
         create_notification(
-            user_id=app_record["user_id"],
+            user_id=target_user_id,
             title=f"Loan Application {review.decision}",
             message=f"Your loan application #{application_id[:8].upper()} has been updated to '{review.decision}'. Officer Notes: {review.notes}",
             application_id=application_id,

@@ -78,6 +78,33 @@ export default function EligibilityResult({ result, onReset }) {
         </div>
       </div>
 
+      {/* Human Loan Officer Final Decision & Remarks */}
+      {result.review_notes && (
+        <div className="officer-decision-callout">
+          <div className="officer-callout-top">
+            <div className="officer-callout-title">
+              <span className="officer-callout-icon">🧑‍💼</span>
+              <div>
+                <span className="officer-callout-label">HUMAN LOAN OFFICER REVIEW</span>
+                <h3 className="officer-callout-heading">Binding Decision: {result.status}</h3>
+              </div>
+            </div>
+            <span className="officer-callout-badge">
+              {result.status}
+            </span>
+          </div>
+          <div className="officer-callout-body">
+            <p className="officer-callout-quote">&ldquo;{result.review_notes}&rdquo;</p>
+            <div className="officer-callout-footer">
+              <span>Reviewed by: <b>{result.reviewed_by || "Authorized Loan Officer"}</b></span>
+              {result.reviewed_at && (
+                <span>Date: <b>{new Date(result.reviewed_at).toLocaleString("en-IN")}</b></span>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* AI Disclaimer */}
       <div style={{ margin: "14px 0 0", padding: "12px 16px", background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: "10px", fontSize: "13px", color: "#1e40af", borderLeft: "3px solid #2563eb" }}>
         ⚖️ <strong>Important:</strong> This is an AI-generated recommendation to support — not replace — human judgment.

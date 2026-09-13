@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getApplications, getNotifications, markNotificationRead, downloadPdfReport } from "../services/api";
+import { getApplications, getSingleApplication, getNotifications, markNotificationRead, downloadPdfReport } from "../services/api";
 import ApplicationForm from "./ApplicationForm";
 import DocumentUpload from "./DocumentUpload";
 import EligibilityResult from "./EligibilityResult";
@@ -116,9 +116,20 @@ export default function ApplicantDashboard({ user, onLogout }) {
     setView("upload");
   };
 
-  const handleViewResult = (app) => {
-    setSelectedApp(app);
-    setView("result");
+  const handleViewResult = async (app) => {
+    try {
+      setLoading(true);
+      const res = await getSingleApplication(app.application_id);
+      setSelectedApp(res.data);
+      setEligibilityResult(null);
+      setView("result");
+    } catch {
+      setSelectedApp(app);
+      setEligibilityResult(null);
+      setView("result");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const firstName = user?.full_name?.split(" ")[0] || "Applicant";
@@ -357,6 +368,30 @@ export default function ApplicantDashboard({ user, onLogout }) {
                     <p className="pipeline-current-label">
                       Stage {stage}: {PIPELINE_STAGES[stage - 1]?.label}
                     </p>
+
+                    {/* Loan Officer Review Remarks Callout */}
+                    {app.review_notes && (
+                      <div className="applicant-officer-notes-card">
+                        <div className="officer-notes-header">
+                          <span className="officer-notes-badge">🧑‍💼 Loan Officer Decision Notes</span>
+                          {app.reviewed_by && (
+                            <span className="officer-by-text">By: <b>{app.reviewed_by}</b></span>
+                          )}
+                          {app.reviewed_at && (
+                            <span className="officer-date-text">
+                              {new Date(app.reviewed_at).toLocaleDateString("en-IN", {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          )}
+                        </div>
+                        <p className="officer-notes-content">&ldquo;{app.review_notes}&rdquo;</p>
+                      </div>
+                    )}
 
                     <div className="app-card-actions">
                       {isComplete ? (

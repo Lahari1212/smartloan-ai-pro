@@ -1425,6 +1425,130 @@ input, select, textarea { font-family: inherit; }
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* ─── Applicant Officer Notes Display ───────────────────────── */
+.applicant-officer-notes-card {
+  margin: 12px 0 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1.5px solid #cbd5e1;
+  border-left: 4px solid #1e3a8a;
+  border-radius: 10px;
+}
+
+.officer-notes-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+}
+
+.officer-notes-badge {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #1e3a8a;
+  background: #dbeafe;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.officer-by-text {
+  font-size: 12px;
+  color: #475569;
+}
+
+.officer-date-text {
+  font-size: 11px;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.officer-notes-content {
+  margin: 4px 0 0;
+  font-size: 13.5px;
+  color: #0f172a;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+/* ─── Result Page Officer Decision Callout ─────────────────── */
+.officer-decision-callout {
+  margin-top: 16px;
+  background: #ffffff;
+  border: 2px solid #2563eb;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(37, 99, 235, 0.08);
+}
+
+.officer-callout-top {
+  background: #eff6ff;
+  border-bottom: 1px solid #bfdbfe;
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.officer-callout-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.officer-callout-icon {
+  font-size: 26px;
+}
+
+.officer-callout-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #1d4ed8;
+  text-transform: uppercase;
+}
+
+.officer-callout-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.officer-callout-badge {
+  background: #1e3a8a;
+  color: white;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.officer-callout-body {
+  padding: 16px 20px;
+}
+
+.officer-callout-quote {
+  margin: 0 0 12px;
+  font-size: 14.5px;
+  color: #1e293b;
+  font-style: italic;
+  line-height: 1.6;
+}
+
+.officer-callout-footer {
+  display: flex;
+  gap: 20px;
+  font-size: 12px;
+  color: #64748b;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 10px;
+}
+
 /* ─── Responsive ────────────────────────────────────────────── */
 @media (max-width: 1024px) {
   .officer-stats-grid { grid-template-columns: repeat(3, 1fr); }
